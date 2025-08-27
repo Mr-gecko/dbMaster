@@ -179,7 +179,7 @@ def getMusic(prev:bool=False):
                     "year":str(audioFile.recording_date) if audioFile.recording_date != None else "no Year",
                     "genre":str(audioFile.genre.name) if audioFile.genre.name != None else "no Genre",
                     "duration":str(duration),
-                    "source url":str(audioFile.audio_file_url) if audio_file_url != None else "no Url"
+                    "source url":str(audioFile.audio_file_url) if audioFile.audio_file_url != None else "no Url"
                 })
 
         albums[album]["artist"] = "Various Artists" if albumArtist == None else albumArtist
@@ -238,7 +238,71 @@ def addMusic(oldData:dict, prev:bool=False):
                     "year":str(audioFile.recording_date) if audioFile.recording_date != None else "no Year",
                     "genre":str(audioFile.genre.name) if audioFile.genre.name != None else "no Genre",
                     "duration":str(duration),
-                    "source url":str(audioFile.audio_file_url) if audio_file_url != None else "no Url"
+                    "source url":str(audioFile.audio_file_url) if audioFile.audio_file_url != None else "no Url"
+                })
+
+        albums[album]["artist"] = "Various Artists" if albumArtist == None else albumArtist
+        albums[album]["year"] = str(audioFile.recording_date) if audioFile.recording_date != None else "no Year"
+        albums[album]["genre"] = str(audioFile.genre.name) if audioFile.genre.name != None else "no Genre"
+        albums[album]["duration"] = str(formatTime(albumDuration))
+
+    data = dict(data, **albums)
+    data  = dict(oldData, **data)
+    data["info"] = lastUpdated()
+
+    # print(json.dumps(data, indent=2, ensure_ascii=False))
+    print() # to exit the loading bar
+    return data
+
+def updateMusic(oldData:dict, prev:bool=False):
+    # data = {
+    #     "info": lastUpdated()
+    # }
+    data = {}
+    albums = {}
+    folder = input("folder: ")
+    os.chdir(folder)
+    total = 0
+    prog = 0
+    for alb in os.listdir(folder):
+        if os.path.isdir(alb):
+            if alb == "System Volume Information":
+                continue
+            total += len(os.listdir(alb))
+    for album in os.listdir(folder):
+        if not os.path.isdir(album) or album == "System Volume Information":
+            continue
+        elif album in list(oldData.keys()):
+            print(album, "already exists")
+            continue
+        # print(f"reading {album}")
+        albums[album] = {
+            "artist":"",
+            "year": "",
+            "genre":"",
+            "duration":"",
+            "info": whenAdded() if not prev else addedPrev(),
+            "songs":[]
+        }
+        albumDuration = 0
+        for file in os.listdir(album):
+            # print(f"reading   {file}")
+            prog += 1
+            bar(prog, total, cutName(file.split(".")[0], 35))  # SONG SHOWER
+            #bar(prog, total, cutName(album, 25))  # ALBUM SHOWER
+            if file.split(".")[-1] == "mp3":
+                audioFile = eyed3.load(album+"/"+file)
+                albumDuration += audioFile.info.time_secs
+                duration = formatTime(audioFile.info.time_secs)
+                audioFile = audioFile.tag # THIS IS BECAUSE info.time_secs DON'T NEED .tag FIRST
+                albumArtist = audioFile.album_artist
+                albums[album]["songs"].append({
+                    "title": str(audioFile.title) if audioFile.title != None else "no Title",
+                    "artists": audioFile.artist.split(", ") if audioFile.artist != None else "no Artists",
+                    "year":str(audioFile.recording_date) if audioFile.recording_date != None else "no Year",
+                    "genre":str(audioFile.genre.name) if audioFile.genre.name != None else "no Genre",
+                    "duration":str(duration),
+                    "source url":str(audioFile.audio_file_url) if audioFile.audio_file_url != None else "no Url"
                 })
 
         albums[album]["artist"] = "Various Artists" if albumArtist == None else albumArtist
@@ -305,6 +369,23 @@ def show(data:dict, artist:bool=True, year:bool=True, genre:bool=True, info:bool
     res = "\n".join(lines)
     return res
 
+def retSongs(data:dict):
+    allSongs = []
+    for album in data:
+        if album == "info":
+            continue
+        for song in data[album]["songs"]:
+            allSongs.append(song["title"])
+    return allSongs
+
+def retAlbums(data:dict):
+    allAlbums = []
+    for album in data:
+        allAlbums.append(album)
+    return allAlbums
+
+# print(retSongs(loadData(str("C:\\Users\\vasco\\Desktop\\quickd\\musicData.json"))))
+# input()
 
 # data = loadData(f"{path}\\musicData.json")
 # data = addMusic(data, prev=True)
@@ -319,15 +400,23 @@ Options:
 (2) add music to db
 (3) convert music db to text
 (4) gather info from db
+(5) update music db
 """)
+
 cmd = str(input("option: "))
+prev_var = False
+if cmd.lower() == "prev":
+    prev_var = True
+    print(f"prev_var is now: {prev_var}")
+    cmd = str(input("option: "))
+
 if cmd == "1":
-    data = getMusic(prev=False)
+    data = getMusic(prev=prev_var)
     saveData(dataPath, data)
     saveShow(showPath, show(data))
 elif cmd == "2":
     oldData = loadData(str(input("db file: ")))
-    data = addMusic(oldData, prev=False)
+    data = addMusic(oldData, prev=prev_var)
     saveData(dataPath, data)
     saveShow(showPath, show(data))
 elif cmd == "3":
@@ -339,6 +428,11 @@ elif cmd == "4":
     data = loadData(str(input("db file: ")))
     info = gatherInfo(data)
     printInfo(info)
+elif cmd == "5":
+    oldData = loadData(str(input("db file: ")))
+    data = updateMusic(oldData, prev=prev_var)
+    saveData(dataPath, data)
+    saveShow(showPath, show(data))
 
 # data = getMusic(prev=True)
 # saveData("C:\\Users\\vasco\\Desktop\\musicData.json", data)
